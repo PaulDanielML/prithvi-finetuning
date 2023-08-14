@@ -3,3 +3,6 @@
 *egg*
 *json*
 *build*
+data
+weights
+.venv

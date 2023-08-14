@@ -1,6 +1,7 @@
 """
 This file holds pipeline components useful for loading remote sensing images and annotations.
 """
+from typing import Tuple
 import numpy as np
 import os.path as osp
 import torch
@@ -94,6 +95,34 @@ class TorchRandomCrop(object):
         results["img"] = F.crop(results["img"], i, j, h, w).float()
         results["gt_semantic_seg"] = F.crop(results["gt_semantic_seg"], i, j, h, w)
 
+        return results
+
+
+@PIPELINES.register_module()
+class PercentileNormalize:
+    def __init__(self, bounds: Tuple[int] = (2, 98)) -> None:
+        self.lower, self.upper = bounds
+
+    def __call__(self, results):
+        img = results["img"]
+
+        out_img = np.zeros(img.shape)
+        # Normalization based on the lower and upper nth percentile
+        if len(img.shape) == 3:
+            for band in range(img.shape[0]):
+                top = np.percentile(img[band, img[band] > 0], self.upper)
+                bottom = np.percentile(img[band, img[band] > 0], self.lower)
+                out_img[band] = (img[band] - bottom) / (top - bottom)
+        else:
+            top = np.percentile(img[img > 0], self.upper)
+            bottom = np.percentile(img[img > 0], self.lower)
+            out_img = (img - bottom) / (top - bottom)
+
+        out_img[out_img > 1] = 1
+        out_img[out_img < 0] = 0
+
+        results["img"] = out_img
+        # results["img_norm_cfg"] = dict(mean=0, std=1)
         return results
 
 
